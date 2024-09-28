@@ -1,3 +1,7 @@
+# for user self-use only.
+# Please do not modify this file unless you know what you are doing.
+*.pt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
