@@ -336,3 +336,40 @@ class DetectionValidator(BaseValidator):
             except Exception as e:
                 LOGGER.warning(f"{pkg} unable to run: {e}")
         return stats
+
+    def eval_json_polaris(self, stats, anno_json_path):
+        """Evaluates YOLO output in JSON format and returns performance statistics. used for Polaris"""
+        if self.args.save_json and (self.is_coco or self.is_lvis) and len(self.jdict):
+            pred_json = self.save_dir / "predictions.json"  # predictions
+            # anno_json = (
+            #     self.data["path"]
+            #     / "annotations"
+            #     / ("instances_val2017.json" if self.is_coco else f"lvis_v1_{self.args.split}.json")
+            # )  # annotations
+            anno_json = anno_json_path
+            pkg = "pycocotools" if self.is_coco else "lvis"
+            LOGGER.info(f"\nEvaluating {pkg} mAP using {pred_json} and {anno_json}...")
+            try:  # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
+                for x in pred_json, anno_json:
+                    assert x.is_file(), f"{x} file not found"
+                check_requirements("pycocotools>=2.0.6" if self.is_coco else "lvis>=0.5.3")
+                if self.is_coco:
+                    from pycocotools.coco import COCO  # noqa
+                    from pycocotools.cocoeval import COCOeval  # noqa
+
+                    anno = COCO(str(anno_json))  # init annotations api
+                    pred = anno.loadRes(str(pred_json))  # init predictions api (must pass string, not Path)
+                    val = COCOeval(anno, pred, "bbox")
+                val.params.imgIds = [int(Path(x).stem) for x in self.dataloader.dataset.im_files]  # images to eval
+                val.evaluate()
+                val.accumulate()
+                val.summarize()
+                if self.is_lvis:
+                    val.print_results()  # explicitly call print_results
+                # update mAP50-95 and mAP50
+                stats[self.metrics.keys[-1]], stats[self.metrics.keys[-2]] = (
+                    val.stats[:2] if self.is_coco else [val.results["AP50"], val.results["AP"]]
+                )
+            except Exception as e:
+                LOGGER.warning(f"{pkg} unable to run: {e}")
+        return stats

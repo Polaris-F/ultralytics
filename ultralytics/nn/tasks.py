@@ -9,6 +9,10 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
+from ultralytics.nn.extra_modules import (
+    ACmix,
+)
+
 from ultralytics.nn.modules import (
     AIFI,
     C1,
@@ -960,6 +964,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
 
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         if m in {
+            ACmix,
             Classify,
             Conv,
             ConvTranspose,

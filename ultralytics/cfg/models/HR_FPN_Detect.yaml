@@ -70,5 +70,6 @@ head:
 
    [ [ 43, 45 ], 1, Concat, [ 1 ] ],  # 46
 
-   [[46], 1, STDetect, [nc, anchors]],  # Detect(P2)
+  #  [[46], 1, STDetect, [nc, anchors]],  # Detect(P2)
+  [[46], 1, Detect, [nc, anchors]],  # Detect(P2)
   ]
