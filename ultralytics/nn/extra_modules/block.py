@@ -82,7 +82,7 @@ class ACmix(nn.Module):
         # get pair-wise relative position index for each token inside the window
         coords_h = torch.arange(self.window_size[0])
         coords_w = torch.arange(self.window_size[1])
-        coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
+        coords = torch.stack(torch.meshgrid([coords_h, coords_w], indexing='ij'))   # 2, Wh, Ww
         coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
         relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
         relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
@@ -101,7 +101,7 @@ class ACmix(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
 
         # fully connected layer in Fig.2
-        self.fc = nn.Conv2d(3 * self.num_heads, 9, kernel_size=1, bias=True)
+        self.fc:torch.Tensor = nn.Conv2d(3 * self.num_heads, 9, kernel_size=1, bias=True)
         # group convolution layer in Fig.3
         self.dep_conv = nn.Conv2d(9 * dim // self.num_heads, dim, kernel_size=3, bias=True,
                                   groups=dim // self.num_heads, padding=1)
@@ -127,16 +127,17 @@ class ACmix(nn.Module):
             x: input features with shape of (B, C, H, W) To (B, H, W, C)
             mask: (0/-inf) mask with shape of (num_windows, Wh*Ww, Wh*Ww) or None
         """
-        x = x.permute(0, 2, 3, 1)
+        x = x.permute(0, 2, 3, 1).contiguous()
         _, H, W, _ = x.shape
-        qkv = self.qkv(x)
+        qkv:torch.Tensor = self.qkv(x)
 
         # fully connected layer
-        f_all = qkv.reshape(x.shape[0], H * W, 3 * self.num_heads, -1).permute(0, 2, 1, 3)  # B, 3*nhead, H*W, C//nhead
-        f_conv = self.fc(f_all).permute(0, 3, 1, 2).reshape(x.shape[0], 9 * x.shape[-1] // self.num_heads, H, W)
+        f_all = qkv.reshape(x.shape[0], H * W, 3 * self.num_heads, -1).permute(0, 2, 1, 3).contiguous()  # B, 3*nhead, H*W, C//nhead
+        fc_out:torch.Tensor = self.fc(f_all)
+        f_conv = fc_out.permute(0, 3, 1, 2).contiguous().reshape(x.shape[0], 9 * x.shape[-1] // self.num_heads, H, W)
 
         # group conovlution
-        out_conv = self.dep_conv(f_conv).permute(0, 2, 3, 1)  # B, H, W, C
+        out_conv = self.dep_conv(f_conv).permute(0, 2, 3, 1).contiguous()  # B, H, W, C
 
         # partition windows
         qkv = window_partition(qkv, self.window_size[0])  # nW*B, window_size, window_size, C
@@ -148,7 +149,7 @@ class ACmix(nn.Module):
         N = self.window_size[0] * self.window_size[1]
         C = C // 3
 
-        qkv = qkv.reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        qkv = qkv.reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4).contiguous()
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
         q = q * self.scale
@@ -171,7 +172,7 @@ class ACmix(nn.Module):
 
         x = self.rate1 * x + self.rate2 * out_conv
 
-        x = self.proj_drop(x).permute(0, 3, 1, 2)
+        x = self.proj_drop(x).permute(0, 3, 1, 2).contiguous()
         return x
 
 ## <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< ACmix <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< ##

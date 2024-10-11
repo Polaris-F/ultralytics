@@ -9,9 +9,11 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from ultralytics.nn.extra_modules import (
-    ACmix,
-)
+from ultralytics.nn.extra_modules import *
+# (
+#     ACmix,
+#     v5Detect
+# )
 
 from ultralytics.nn.modules import (
     AIFI,
@@ -934,7 +936,7 @@ def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
     return model, ckpt
 
 
-def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
+def parse_model(d:dict, ch, verbose=True):  # model_dict, input_channels(3)
     """Parse a YOLO model.yaml dictionary into a PyTorch model."""
     import ast
 
@@ -942,6 +944,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
     max_channels = float("inf")
     nc, act, scales = (d.get(x) for x in ("nc", "activation", "scales"))
     depth, width, kpt_shape = (d.get(x, 1.0) for x in ("depth_multiple", "width_multiple", "kpt_shape"))
+    anchors = d.get("anchors") if 'anchors' in d else None
     if scales:
         scale = d.get("scale")
         if not scale:
@@ -966,102 +969,114 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
 
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
-        if m in {
-            ACmix,
-            Classify,
-            Conv,
-            ConvTranspose,
-            GhostConv,
-            Bottleneck,
-            GhostBottleneck,
-            SPP,
-            SPPF,
-            C2fPSA,
-            C2PSA,
-            DWConv,
-            Focus,
-            BottleneckCSP,
-            C1,
-            C2,
-            C2f,
-            C3k2,
-            RepNCSPELAN4,
-            ELAN1,
-            ADown,
-            AConv,
-            SPPELAN,
-            C2fAttn,
-            C3,
-            C3TR,
-            C3Ghost,
-            nn.ConvTranspose2d,
-            DWConvTranspose2d,
-            C3x,
-            RepC3,
-            PSA,
-            SCDown,
-            C2fCIB,
-        }:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            if m is C2fAttn:
-                args[1] = make_divisible(min(args[1], max_channels // 2) * width, 8)  # embed channels
-                args[2] = int(
-                    max(round(min(args[2], max_channels // 2 // 32)) * width, 1) if args[2] > 1 else args[2]
-                )  # num heads
-
-            args = [c1, c2, *args[1:]]
+        try:
             if m in {
+                ACmix,
+                Classify,
+                Conv,
+                ConvTranspose,
+                GhostConv,
+                Bottleneck,
+                GhostBottleneck,
+                SPP,
+                SPPF,
+                C2fPSA,
+                C2PSA,
+                DWConv,
+                Focus,
                 BottleneckCSP,
                 C1,
                 C2,
                 C2f,
                 C3k2,
+                RepNCSPELAN4,
+                ELAN1,
+                ADown,
+                AConv,
+                SPPELAN,
                 C2fAttn,
                 C3,
                 C3TR,
                 C3Ghost,
+                nn.ConvTranspose2d,
+                DWConvTranspose2d,
                 C3x,
                 RepC3,
-                C2fPSA,
+                PSA,
+                SCDown,
                 C2fCIB,
-                C2PSA,
             }:
-                args.insert(2, n)  # number of repeats
-                n = 1
-            if m is C3k2 and scale in "mlx":  # for M/L/X sizes
-                args[3] = True
-        elif m is AIFI:
-            args = [ch[f], *args]
-        elif m in {HGStem, HGBlock}:
-            c1, cm, c2 = ch[f], args[0], args[1]
-            args = [c1, cm, c2, *args[2:]]
-            if m is HGBlock:
-                args.insert(4, n)  # number of repeats
-                n = 1
-        elif m is ResNetLayer:
-            c2 = args[1] if args[3] else args[1] * 4
-        elif m is nn.BatchNorm2d:
-            args = [ch[f]]
-        elif m is Concat:
-            c2 = sum(ch[x] for x in f)
-        elif m in {Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}:
-            args.append([ch[x] for x in f])
-            if m is Segment:
-                args[2] = make_divisible(min(args[2], max_channels) * width, 8)
-        elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
-            args.insert(1, [ch[x] for x in f])
-        elif m is CBLinear:
-            c2 = args[0]
-            c1 = ch[f]
-            args = [c1, c2, *args[1:]]
-        elif m is CBFuse:
-            c2 = ch[f[-1]]
-        else:
-            c2 = ch[f]
+                c1, c2 = ch[f], args[0]
+                if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                    c2 = make_divisible(min(c2, max_channels) * width, 8)
+                if m is C2fAttn:
+                    args[1] = make_divisible(min(args[1], max_channels // 2) * width, 8)  # embed channels
+                    args[2] = int(
+                        max(round(min(args[2], max_channels // 2 // 32)) * width, 1) if args[2] > 1 else args[2]
+                    )  # num heads
 
-        m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
+                args = [c1, c2, *args[1:]]
+                if m in {
+                    BottleneckCSP,
+                    C1,
+                    C2,
+                    C2f,
+                    C3k2,
+                    C2fAttn,
+                    C3,
+                    C3TR,
+                    C3Ghost,
+                    C3x,
+                    RepC3,
+                    C2fPSA,
+                    C2fCIB,
+                    C2PSA,
+                }:
+                    args.insert(2, n)  # number of repeats
+                    n = 1
+                if m is C3k2 and scale in "mlx":  # for M/L/X sizes
+                    args[3] = True
+            elif m is AIFI:
+                args = [ch[f], *args]
+            elif m in {HGStem, HGBlock}:
+                c1, cm, c2 = ch[f], args[0], args[1]
+                args = [c1, cm, c2, *args[2:]]
+                if m is HGBlock:
+                    args.insert(4, n)  # number of repeats
+                    n = 1
+            elif m is ResNetLayer:
+                c2 = args[1] if args[3] else args[1] * 4
+            elif m is nn.BatchNorm2d:
+                args = [ch[f]]
+            elif m is Concat:
+                c2 = sum(ch[x] for x in f)
+            elif m in {Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}:
+                args.append([ch[x] for x in f])
+                if m is Segment:
+                    args[2] = make_divisible(min(args[2], max_channels) * width, 8)
+            elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
+                args.insert(1, [ch[x] for x in f])
+            elif m is CBLinear:
+                c2 = args[0]
+                c1 = ch[f]
+                args = [c1, c2, *args[1:]]
+            elif m is CBFuse:
+                c2 = ch[f[-1]]
+            elif m in [ACDetect, v5Detect, STDetect]:
+                args.append([ch[x] for x in f])
+                if isinstance(args[1], int):  # number of anchors
+                    args[1] = [list(range(args[1] * 2))] * len(f)
+            else:
+                c2 = ch[f]
+        except Exception as e:
+            LOGGER.error(f"====> Check: m:{m} n:{n} args:{args} f:{f} ")
+            raise ValueError(f"Error parsing model.yaml: {e}") from e
+
+        try:
+            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
+        except Exception as e:
+            LOGGER.error(f"====> Check: m:{m}*args:{args} n:{n} ")
+            raise ValueError(f"Error parsing model.yaml: {e}") from e
         t = str(m)[8:-2].replace("__main__.", "")  # module type
         m.np = sum(x.numel() for x in m_.parameters())  # number params
         m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type
