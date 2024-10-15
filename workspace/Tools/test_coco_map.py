@@ -34,35 +34,47 @@ def print_log(s, content_color = 'green'):
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--anno_json', type=str, default=r'/userhome/lhf/datasets/VisDrone2019/VisDrone2019-DET-test-dev/data.json', help='label coco json path')
-    parser.add_argument('--pred_json', type=str, default='', help='pred coco json path')
+    parser.add_argument('--pred_json', type=str, default=r'', help='pred coco json path')
     parser.add_argument('--model_path', type=str, default=r'/userhome/lhf/Github/WorkSpace/VisDrone/ultralytics/runs/detect/yolov11n-640', help='root_path + "/weights/best.pt"')
+    # project_path
+    parser.add_argument('--project', type=str, default=r'/userhome/lhf/Github/WorkSpace/VisDrone/mAPs', help='project path')
+    parser.add_argument('--name', type=str, default='exp', help='name for evaluation')
     # for iou
     parser.add_argument('--iou_thres', type=float, default=0.5, help='iou threshold for evaluation')
     # for conf
     parser.add_argument('--conf_thres', type=float, default=0.25, help='confidence threshold for evaluation')
     # for imgsz
-    parser.add_argument('--img_size', type=int, default=640, help='image size for evaluation')
+    parser.add_argument('--img_size', type=int, default=1024, help='image size for evaluation')
+    # batch_size
+    parser.add_argument('--batch', type=int, default=64, help='batch size for evaluation')
     # for tidecv flag
-    parser.add_argument('--tidecv', action="store_true", help='whether to use tidecv for evaluation')
+    parser.add_argument('--tidecv', action="store_true", help=' store_false or store_true whether to use tidecv for evaluation')
+    return parser
 
-    return parser.parse_known_args()[0]
-
-opt = parse_opt()
+parser = parse_opt()
+# parser.print_help()
+opt = parser.parse_args()
 anno_json = opt.anno_json
 pred_json = opt.pred_json
-root_path = opt.model_path
-
+model_path = opt.model_path
+project_path = opt.project
 
 
 # check is root_path is exist
-if not os.path.exists(Path(root_path)):
-    print_log(">>> root_path not exists.  *{root_path}* <<<+",'yellow')
+if not os.path.exists(Path(model_path)):
+    print_log(f">>> root_path not exists.  model_path: {model_path} <<<+",'yellow')
     exit()
 else:
-    if not os.path.exists(root_path + "/weights/best.pt"):
+    if not os.path.exists(model_path + "/weights/best.pt"):
         print_log(">>> best.pt not exists. <<<+",'yellow')
-    print_log(f">>> model path {root_path} . <<<+")
+    print_log(f">>> model path: {model_path} . <<<+")
     
+# check if project_path exists if not create it
+if not os.path.exists(project_path):
+    os.makedirs(project_path)
+    print_log(f">>> create project_path *{project_path}* . <<<+",'yellow')
+else:
+    print_log(f">>> project_path *{project_path}* exists. <<<+")
 
 # from ultralytics import settings
 
@@ -78,15 +90,15 @@ from ultralytics.models.yolo.detect import DetectionValidator
 
 
 args = {
-    "model": root_path + "/weights/best.pt", 
+    "model": model_path + "/weights/best.pt", 
     "data": "/userhome/lhf/Github/WorkSpace/ultralytics_cfg/cfg/datasets/VisDrone.yaml", 
     "save_json": True, 
-    "imgsz": 640,
+    "imgsz": opt.img_size,
     "mode": "test", #保存文件夹名称
     "split": "test", # 控制读取哪个split的数据集
-    "project": root_path + "/get_map", # 保存文件夹名称
-    "name": "exp", # 保存文件夹名称
-    "batch": 64,
+    "project": project_path + "/get_map", # 保存文件夹名称
+    "name": opt.name, # 保存文件夹名称
+    "batch": opt.batch,
     "iou": 0.5,
     "conf": 0.25, 
     }
@@ -99,8 +111,23 @@ if pred_json == '':
     validator()
     validator.is_coco = True
     _,pred_json = validator.eval_json_polaris(validator.stats,anno_json_path=anno_json)
-else:
-    print_log(f">>> pred_json provided, will validate with {pred_json}. <<<+")
+# else:
+print_log(f">>> pred_json provided, will validate with {pred_json}. <<<+")
+from pycocotools.coco import COCO  # noqa
+from pycocotools.cocoeval import COCOeval  # noqa
+
+anno = COCO(str(anno_json))  # init annotations api
+pred = anno.loadRes(str(pred_json))  # init predictions api (must pass string, not Path)
+val = COCOeval(anno, pred, "bbox", areaRng_subset=True, infer_size = [opt.img_size, opt.img_size])
+# val.params.imgIds = [str(Path(x).stem) for x in self.dataloader.dataset.im_files]  # images to eval
+val.mAP_type = 'YOLO'
+print_log('evaluate starting...')
+val.evaluate()
+print_log('accumulate starting...')
+val.accumulate()
+print_log(f'summarize starting... iou_thres={opt.iou_thres}, conf_thres={opt.conf_thres} infer_size={opt.img_size} mAP_type:{val.mAP_type}')
+val.summarize(TOD=True)
+print_log('"==========>>> evaluate done for model_path:{model_path} ...')
 
 if opt.tidecv:
     print_log("==========>>> Start validating YOLO model predictions on COCO dataset using tidecv. <<<=")
@@ -109,4 +136,6 @@ if opt.tidecv:
     tide = TIDE()
     tide.evaluate_range(datasets.COCO(anno_json), datasets.COCOResult(pred_json), mode=TIDE.BOX)
     tide.summarize()
-    tide.plot(out_dir=root_path+r'/tidecv_result/')
+    out_dir=project_path+r'/tidecv_result/'
+    tide.plot(out_dir=out_dir)
+    print_log(f"==========>>> tidecv validation done. out_dir{out_dir} <<<+")

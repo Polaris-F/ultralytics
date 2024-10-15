@@ -354,7 +354,7 @@ class DetectionValidator(BaseValidator):
             pkg = "pycocotools" if self.is_coco else "lvis"
             LOGGER.info(f"\nEvaluating {pkg} mAP using {pred_json} and {anno_json}...")
             # try:  # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
-            if True:
+            if False:
                 for x in pred_json, anno_json:
                     assert x.is_file(), f"{x} file not found"
                 check_requirements("pycocotools>=2.0.6" if self.is_coco else "lvis>=0.5.3")
