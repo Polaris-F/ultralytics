@@ -196,7 +196,7 @@ class BaseModel(nn.Module):
         if c:
             LOGGER.info(f"{sum(dt):10.2f} {'-':>10s} {'-':>10s}  Total")
 
-    def fuse(self, verbose=True):
+    def fuse(self, verbose=True, **kwargs):
         """
         Fuse the `Conv2d()` and `BatchNorm2d()` layers of the model into a single layer, in order to improve the
         computation efficiency.
@@ -222,7 +222,7 @@ class BaseModel(nn.Module):
                 if isinstance(m, RepVGGDW):
                     m.fuse()
                     m.forward = m.forward_fuse
-            self.info(verbose=verbose)
+            self.info(verbose=verbose,**kwargs)
 
         return self
 

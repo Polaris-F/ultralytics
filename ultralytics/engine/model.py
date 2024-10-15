@@ -409,7 +409,7 @@ class Model(nn.Module):
         }
         torch.save({**self.ckpt, **updates}, filename)
 
-    def info(self, detailed: bool = False, verbose: bool = True):
+    def info(self, detailed: bool = False, verbose: bool = True, **kwargs):
         """
         Logs or returns model information.
 
@@ -433,9 +433,9 @@ class Model(nn.Module):
             >>> info_list = model.info(detailed=True, verbose=False)  # Returns detailed info as a list
         """
         self._check_is_pytorch_model()
-        return self.model.info(detailed=detailed, verbose=verbose)
+        return self.model.info(detailed=detailed, verbose=verbose, **kwargs)
 
-    def fuse(self):
+    def fuse(self, **kwargs):
         """
         Fuses Conv2d and BatchNorm2d layers in the model for optimized inference.
 
@@ -456,7 +456,7 @@ class Model(nn.Module):
             >>> # Model is now fused and ready for optimized inference
         """
         self._check_is_pytorch_model()
-        self.model.fuse()
+        self.model.fuse(**kwargs)
 
     def embed(
         self,

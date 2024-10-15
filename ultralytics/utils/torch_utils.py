@@ -155,6 +155,7 @@ def select_device(device="", batch=0, newline=False, verbose=True):
 
     Note:
         Sets the 'CUDA_VISIBLE_DEVICES' environment variable for specifying which GPUs to use.
+        eg log: 'Ultralytics 8.3.3 🚀 Python-3.8.19 torch-2.2.2 CUDA:0 (NVIDIA GeForce RTX 4090, 24111MiB)'
     """
     if isinstance(device, torch.device):
         return device
@@ -319,7 +320,7 @@ def model_info(model, detailed=False, verbose=True, imgsz=640):
     fs = f", {flops:.1f} GFLOPs" if flops else ""
     yaml_file = getattr(model, "yaml_file", "") or getattr(model, "yaml", {}).get("yaml_file", "")
     model_name = Path(yaml_file).stem.replace("yolo", "YOLO") or "Model"
-    LOGGER.info(f"{model_name} summary{fused}: {n_l:,} layers, {n_p:,} parameters, {n_g:,} gradients{fs}")
+    LOGGER.info(f"{model_name} of {imgsz} summary{fused}: {n_l:,} layers, {n_p:,} parameters, {n_g:,} gradients{fs}")
     return n_l, n_p, n_g, flops
 
 
