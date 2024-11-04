@@ -5,6 +5,7 @@ import pickle
 import types
 from copy import deepcopy
 from pathlib import Path
+from typing import Union
 
 import torch
 import torch.nn as nn
@@ -147,12 +148,12 @@ class BaseModel(nn.Module):
         Returns:
             (torch.Tensor): The last output of the model.
         """
-        y, dt, embeddings = [], [], []  # outputs
+        y, dt, embeddings, flops_all, params_all = [], [], [], [], []  # outputs
         for m in self.model:
             if m.f != -1:  # if not from previous layer
                 x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
             if profile:
-                self._profile_one_layer(m, x, dt)
+                self._profile_one_layer(m, x, dt, flops_all, params_all)
             x = m(x)  # run
             y.append(x if m.i in self.save else None)  # save output
             if visualize:
@@ -171,7 +172,7 @@ class BaseModel(nn.Module):
         )
         return self._predict_once(x)
 
-    def _profile_one_layer(self, m, x, dt):
+    def _profile_one_layer(self, m, x, dt, flops_all:Union[list, None]=None, params_all:Union[list, None]=None):
         """
         Profile the computation time and FLOPs of a single layer of the model on a given input. Appends the results to
         the provided list.
@@ -193,8 +194,13 @@ class BaseModel(nn.Module):
         if m == self.model[0]:
             LOGGER.info(f"{'time (ms)':>10s} {'GFLOPs':>10s} {'params':>10s}  module")
         LOGGER.info(f"{dt[-1]:10.2f} {flops:10.2f} {m.np:10.0f}  {m.type}")
+        if flops_all is not None: flops_all.append(flops)
+        if params_all is not None: params_all.append(m.np)
         if c:
-            LOGGER.info(f"{sum(dt):10.2f} {'-':>10s} {'-':>10s}  Total")
+            if flops_all is not None and params_all is not None:
+                LOGGER.info(f"{sum(dt):10.2f} {sum(flops_all):>10.2f} {sum(params_all):>10.0f}  Total")
+            else:
+                LOGGER.info(f"{sum(dt):10.2f} {'-':>10s} {'-':>10s} Total")
 
     def fuse(self, verbose=True, **kwargs):
         """
@@ -305,7 +311,7 @@ class BaseModel(nn.Module):
 class DetectionModel(BaseModel):
     """YOLOv8 detection model."""
 
-    def __init__(self, cfg="yolov8n.yaml", ch=3, nc=None, verbose=True):  # model, input channels, number of classes
+    def __init__(self, cfg="yolov8n.yaml", ch=3, nc=None, verbose=True, **kwargs):  # model, input channels, number of classes
         """Initialize the YOLOv8 detection model with the given config and parameters."""
         super().__init__()
         self.yaml = cfg if isinstance(cfg, dict) else yaml_model_load(cfg)  # cfg dict
@@ -347,7 +353,7 @@ class DetectionModel(BaseModel):
         # Init weights, biases
         initialize_weights(self)
         if verbose:
-            self.info()
+            self.info(**kwargs)
             LOGGER.info("")
 
     def _predict_augment(self, x):
