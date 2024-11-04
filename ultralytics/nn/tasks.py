@@ -17,14 +17,7 @@ from ultralytics.nn.extra_modules import *
 # )
 
 from ultralytics.nn.modules import (
-    AIFI,
-    C1,
-    C2,
-    C2PSA,
-    C3,
-    C3TR,
-    ELAN1,
-    OBB,
+    AIFI, C1, C2, C2PSA, C3, C3TR, ELAN1, OBB,
     PSA,
     SPP,
     SPPELAN,
@@ -94,6 +87,9 @@ try:
     import thop
 except ImportError:
     thop = None
+
+
+DETECT_CLASS = (Detect, Detect_RSCD)
 
 
 class BaseModel(nn.Module):
@@ -268,7 +264,7 @@ class BaseModel(nn.Module):
         """
         self = super()._apply(fn)
         m = self.model[-1]  # Detect()
-        if isinstance(m, Detect):  # includes all Detect subclasses like Segment, Pose, OBB, WorldDetect
+        if isinstance(m, DETECT_CLASS):  # includes all Detect subclasses like Segment, Pose, OBB, WorldDetect
             m.stride = fn(m.stride)
             m.anchors = fn(m.anchors)
             m.strides = fn(m.strides)
@@ -334,7 +330,7 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, Detect):  # includes all Detect subclasses like Segment, Pose, OBB, WorldDetect
+        if isinstance(m, DETECT_CLASS):  # includes all Detect subclasses like Segment, Pose, OBB, WorldDetect
             s = 256  # 2x min stride
             m.inplace = self.inplace
 
@@ -977,7 +973,7 @@ def parse_model(d:dict, ch, verbose=True):  # model_dict, input_channels(3)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         try:
             if m in {
-                ACmix,
+                ACmix, SPDConv, 
                 Classify,
                 Conv,
                 ConvTranspose,
@@ -1056,10 +1052,18 @@ def parse_model(d:dict, ch, verbose=True):  # model_dict, input_channels(3)
                 args = [ch[f]]
             elif m is Concat:
                 c2 = sum(ch[x] for x in f)
-            elif m in {Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}:
+            elif (m in {Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}) or (m in DETECT_CLASS):
                 args.append([ch[x] for x in f])
                 if m is Segment:
                     args[2] = make_divisible(min(args[2], max_channels) * width, 8)
+                elif m in {Detect_LSCD, Detect_RSCD}:
+                    args[1] = make_divisible(min(args[1], max_channels) * width, 8)
+
+            elif m in [ACDetect, v5Detect, STDetect]:
+                args.append([ch[x] for x in f])
+                if isinstance(args[1], int):  # number of anchors
+                    args[1] = [list(range(args[1] * 2))] * len(f)
+
             elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
                 args.insert(1, [ch[x] for x in f])
             elif m is CBLinear:
@@ -1068,10 +1072,10 @@ def parse_model(d:dict, ch, verbose=True):  # model_dict, input_channels(3)
                 args = [c1, c2, *args[1:]]
             elif m is CBFuse:
                 c2 = ch[f[-1]]
-            elif m in [ACDetect, v5Detect, STDetect]:
-                args.append([ch[x] for x in f])
-                if isinstance(args[1], int):  # number of anchors
-                    args[1] = [list(range(args[1] * 2))] * len(f)
+
+            elif m in {CSPOmniKernel}:
+                c2 = ch[f]
+                args = [c2]
             else:
                 c2 = ch[f]
         except Exception as e:

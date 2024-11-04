@@ -10,7 +10,7 @@ settings.update({
     'wandb': False,
 })
 
-from ultralytics import YOLO
+from ultralytics import YOLO, RTDETR
 
 
 ## =============>>>>>>>> 标准训练 <
@@ -32,7 +32,7 @@ if False:
         )
 
 ## =============>>>>>>>> 标准训练yolov11 640<
-if True:
+if False:
     # import os
     # os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
     # Load a model
@@ -46,4 +46,38 @@ if True:
         batch=32,
         name="yolov11n-1024",
         exist_ok=True,
+        )
+
+## =============>>>>>>>> 标准训练yolov11 640<
+if False:
+    # import os
+    # os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
+    # Load a model
+    model = RTDETR("yolov8l-rtdetr.yaml")  # build a new model from YAML
+    # Train the model
+    model.train(
+        data="VisDrone.yaml", 
+        epochs=150, 
+        imgsz=1024,
+        device='4,5,6,7',
+        batch=16,
+        name="yolov8l-rtdetr-1024",
+        exist_ok=True,
+        )
+    
+## =============>>>>>>>> /userhome/lhf/Github/WorkSpace/ultralytics_cfg/cfg/models/v8/yolov8-SOEP.yaml <
+if True:
+    # Load a model
+    model = YOLO("yolov8l-SOEP.yaml")  # build a new model from YAML
+    # Train the model
+    model.train(
+        data="VisDrone.yaml", 
+        epochs=100, 
+        imgsz=1024,
+        device='0,1,2,3',
+        batch=16,
+        name="yolov8l-SOEP",
+        exist_ok=True,
+        amp=False,
+        half=False
         )

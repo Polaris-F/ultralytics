@@ -13,7 +13,7 @@ settings.update({
 from ultralytics import YOLO
 
 # Load a model
-model = YOLO("yolov8n.yaml")  # build a new model from YAML
+model = YOLO("yolov8l.yaml")  # build a new model from YAML
 # model = YOLO("yolov8n.pt")  # load a pretrained model (recommended for training)
 # model = YOLO("yolov8n.yaml").load("yolov8n.pt")  # build from YAML and transfer weights
 
@@ -22,8 +22,8 @@ model.train(
     data="VisDrone.yaml", 
     epochs=100, 
     imgsz=1024,
-    device="5,6",
-    batch=32,
-    name="yolov8n-1024",
+    device="2,3",
+    batch=16,
+    name="yolov8l-1024",
     exist_ok=True,
     )

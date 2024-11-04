@@ -59,7 +59,9 @@ pred_json = opt.pred_json
 model_path = opt.model_path
 project_path = opt.project
 
-
+# log iou_thres and conf_thres
+print_log(f">>> iou_thres: {opt.iou_thres} . <<<+")
+print_log(f">>> conf_thres: {opt.conf_thres} . <<<+")
 # check is root_path is exist
 if not os.path.exists(Path(model_path)):
     print_log(f">>> root_path not exists.  model_path: {model_path} <<<+",'yellow')
@@ -88,6 +90,7 @@ else:
 
 from ultralytics.models.yolo.detect import DetectionValidator
 
+from ultralytics.models.rtdetr import RTDETRValidator
 
 args = {
     "model": model_path + "/weights/best.pt", 
@@ -107,7 +110,10 @@ if pred_json == '':
     print_log(">>> No pred_json provided, will validate once to get pred_annotations. <<<+",'yellow')
     ## ==========> run ultralytics validation ===========
     print_log("============================>>> Start validating YOLO model predictions on COCO dataset using pycocotools. <<<=")
-    validator = DetectionValidator(args=args)
+    if 'rtdetr' in model_path:
+        validator = RTDETRValidator(args=args)
+    else:
+        validator = DetectionValidator(args=args)
     validator()
     validator.is_coco = True
     _,pred_json = validator.eval_json_polaris(validator.stats,anno_json_path=anno_json)
@@ -127,7 +133,7 @@ print_log('accumulate starting...')
 val.accumulate()
 print_log(f'summarize starting... iou_thres={opt.iou_thres}, conf_thres={opt.conf_thres} infer_size={opt.img_size} mAP_type:{val.mAP_type}')
 val.summarize(TOD=True)
-print_log('"==========>>> evaluate done for model_path:{model_path} ...')
+print_log(f'==========>>> evaluate done for model_path:{model_path} ...')
 
 if opt.tidecv:
     print_log("==========>>> Start validating YOLO model predictions on COCO dataset using tidecv. <<<=")
