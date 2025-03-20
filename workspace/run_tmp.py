@@ -15,10 +15,10 @@ from ultralytics import YOLO, RTDETR
 
 ## =============>>>>>>>> 标准训练 <
 
-if False: 
+if True: 
     # Load a model
-    model = YOLO("yolov8n.yaml")  # build a new model from YAML
-    # model = YOLO("yolov8n.pt")  # load a pretrained model (recommended for training)
+    # model = YOLO("yolov8n.yaml")  # build a new model from YAML
+    model = YOLO("yolov8n.pt")  # load a pretrained model (recommended for training)
     # model = YOLO("yolov8n.yaml").load("yolov8n.pt")  # build from YAML and transfer weights
 
     # Train the model
@@ -66,9 +66,25 @@ if False:
         )
     
 ## =============>>>>>>>> /userhome/lhf/Github/WorkSpace/ultralytics_cfg/cfg/models/v8/yolov8-SOEP.yaml <
-if True:
+if False:
     # Load a model
-    model = YOLO("yolov8l-SOEP.yaml")  # build a new model from YAML
+    model = YOLO("yolov8l-RSCD.yaml")  # build a new model from YAML
+    # Train the model
+    model.train(
+        data="VisDrone.yaml", 
+        epochs=100, 
+        imgsz=1024,
+        device='0,1,2,3',
+        batch=32,
+        name="yolov8l-RSCD",
+        exist_ok=True,
+        # amp=False,
+        # half=False
+        )
+
+if False:
+    # Load a model
+    model = YOLO("/userhome/lhf/Github/WorkSpace/ultralytics_cfg/cfg/models/HR_FPN_Detect_n.yaml")  # build a new model from YAML
     # Train the model
     model.train(
         data="VisDrone.yaml", 
@@ -76,8 +92,8 @@ if True:
         imgsz=1024,
         device='0,1,2,3',
         batch=16,
-        name="yolov8l-SOEP",
+        name="HR_FPN_Detect_s",
         exist_ok=True,
-        amp=False,
-        half=False
+        # amp=False,
+        # half=False
         )

@@ -49,6 +49,8 @@ def parse_opt():
     parser.add_argument('--batch', type=int, default=64, help='batch size for evaluation')
     # for tidecv flag
     parser.add_argument('--tidecv', action="store_true", help=' store_false or store_true whether to use tidecv for evaluation')
+    # for device
+    parser.add_argument('--device', type=str, default='cuda', help='device for evaluation')
     return parser
 
 parser = parse_opt()
@@ -57,7 +59,7 @@ opt = parser.parse_args()
 anno_json = opt.anno_json
 pred_json = opt.pred_json
 model_path = opt.model_path
-project_path = opt.project
+project_path = opt.projectw
 
 # log iou_thres and conf_thres
 print_log(f">>> iou_thres: {opt.iou_thres} . <<<+")
@@ -104,6 +106,7 @@ args = {
     "batch": opt.batch,
     "iou": 0.5,
     "conf": 0.25, 
+    "device":opt.device,
     }
 
 if pred_json == '':
