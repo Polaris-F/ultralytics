@@ -53,6 +53,14 @@ def img2label_paths(img_paths):
         return [os.path.join(labels_base_path, 'train' if 'train' in x else 'val', 
                            os.path.splitext(os.path.basename(x))[0] + '.txt') 
                 for x in img_paths]
+    elif any('VisDrone2019' in x for x in img_paths[0:10]):
+        # VisDrone2019 数据集的处理方式
+        labels_base_path = os.getenv('VisDrone2019_LABELS_PATH', './labels')
+        if not os.path.exists(labels_base_path):
+            LOGGER.warning(f"WARNING ⚠️ VisDrone2019 labels directory not found at {labels_base_path}. Please set VisDrone2019_LABELS_PATH environment variable correctly.")
+        return [os.path.join(labels_base_path, 'train' if 'train' in x else 'val', 
+                           os.path.splitext(os.path.basename(x))[0] + '.txt') 
+                for x in img_paths]
     else:
         # 普通数据集的处理方式
         sa, sb = f"{os.sep}images{os.sep}", f"{os.sep}labels{os.sep}"  # /images/, /labels/ substrings
