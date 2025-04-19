@@ -12,7 +12,7 @@ import torch.nn as nn
 import torchvision
 
 from ultralytics.nn.extra_modules import *
-from ultralytics.nn.extra_modules.head import v5Detect, ACDetect, STDetect, Detect_LSCD, Detect_RSCD, Detect_DeCoDetHead
+from ultralytics.nn.extra_modules.head import v5Detect, ACDetect, STDetect, Detect_LSCD, Detect_RSCD
 # (
 #     ACmix,
 #     v5Detect
@@ -91,7 +91,7 @@ except ImportError:
     thop = None
 
 
-DETECT_CLASS = (Detect_LSCD, Detect_RSCD, Detect_DeCoDetHead)
+DETECT_CLASS = (Detect_LSCD, Detect_RSCD)
 
 
 class BaseModel(nn.Module):
