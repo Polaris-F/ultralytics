@@ -53,7 +53,7 @@ def img2label_paths(img_paths):
         return [os.path.join(labels_base_path, 'train' if 'train' in x else 'val', 
                            os.path.splitext(os.path.basename(x))[0] + '.txt') 
                 for x in img_paths]
-    elif any('VisDrone2019' in x for x in img_paths[0:10]):
+    elif any('VisDrone2019' in x for x in img_paths[0:10]) and os.getenv('VisDrone2019_LABELS_PATH') is not None:
         # VisDrone2019 数据集的处理方式
         labels_base_path = os.getenv('VisDrone2019_LABELS_PATH', './labels')
         if not os.path.exists(labels_base_path):
