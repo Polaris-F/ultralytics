@@ -92,6 +92,8 @@ from ultralytics.utils.torch_utils import (
     time_sync,
 )
 
+from ultralytics.nn.extra_modules import *
+
 try:
     import thop
 except ImportError:
@@ -1419,6 +1421,13 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             A2C2f,
         }
     )
+    extra_base_modules = frozenset(
+        {
+            SPDConv,
+            # CSPOmniKernel,
+        }
+    )
+    ######################################## SPD-Conv start ########################################
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
         m = (
             getattr(torch.nn, m[3:])
@@ -1432,7 +1441,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 with contextlib.suppress(ValueError):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
-        if m in base_modules:
+        if (m in base_modules) or (m in extra_base_modules):
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
@@ -1488,6 +1497,13 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             c2 = args[0]
             c1 = ch[f]
             args = [*args[1:]]
+
+        ######################################## 处理新模块的 parse ########################################
+        elif m in {CSPOmniKernel}:
+            c2 = ch[f]
+            args = [c2]
+
+        ######################################## 处理新模块的 parse ########################################
         else:
             c2 = ch[f]
 
