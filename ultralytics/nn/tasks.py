@@ -92,12 +92,28 @@ from ultralytics.utils.torch_utils import (
     time_sync,
 )
 
-from ultralytics.nn.extra_modules import *
+from ultralytics.nn.extra_modules import (
+    # ====================== blocks ======================
+    SPDConv,
+    CSPOmniKernel,
+
+
+    # ====================== heads ======================
+    Detect_RSCD,
+)
 
 try:
     import thop
 except ImportError:
     thop = None  # conda support without 'ultralytics-thop' installed
+
+
+# 聚合检测任务CLass
+DETECT_CLASS = (
+    Detect,
+    Detect_RSCD
+)
+
 
 
 class BaseModel(torch.nn.Module):
@@ -266,7 +282,7 @@ class BaseModel(torch.nn.Module):
         self = super()._apply(fn)
         m = self.model[-1]  # Detect()
         if isinstance(
-            m, Detect
+            m, DETECT_CLASS
         ):  # includes all Detect subclasses like Segment, Pose, OBB, WorldDetect, YOLOEDetect, YOLOESegment
             m.stride = fn(m.stride)
             m.anchors = fn(m.anchors)
@@ -341,7 +357,7 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, Detect):  # includes all Detect subclasses like Segment, Pose, OBB, YOLOEDetect, YOLOESegment
+        if isinstance(m, DETECT_CLASS):  # includes all Detect subclasses like Segment, Pose, OBB, YOLOEDetect, YOLOESegment
             s = 256  # 2x min stride
             m.inplace = self.inplace
 
@@ -1485,6 +1501,10 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
             if m in {Detect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB}:
                 m.legacy = legacy
+        elif m in DETECT_CLASS:
+            args.append([ch[x] for x in f])
+            if m in (Detect_RSCD,):
+                args[1] = make_divisible(min(args[1], max_channels) * width, 8)
         elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
             args.insert(1, [ch[x] for x in f])
         elif m is CBLinear:
@@ -1607,7 +1627,7 @@ def guess_model_task(model):
                 return "pose"
             elif isinstance(m, OBB):
                 return "obb"
-            elif isinstance(m, (Detect, WorldDetect, YOLOEDetect, v10Detect)):
+            elif isinstance(m, (Detect, WorldDetect, YOLOEDetect, v10Detect)+DETECT_CLASS):
                 return "detect"
 
     # Guess from model filename
