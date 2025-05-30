@@ -10,7 +10,7 @@ from ultralytics import YOLO
 
 if __name__ == '__main__':
     # choose your yaml file
-    model = YOLO('/userhome/lhf/Codes/3rdparty/ultralytics/ultralytics/cfg/models/Pro/yolov8-RSCD.yaml')
+    model = YOLO('/userhome/lhf/Codes/3rdparty/ultralytics/ultralytics/cfg/models/Pro/HR_FPN_Detect.yaml')
     model.info(detailed=True)
     # try:
     #     model.profile(imgsz=[640, 640])

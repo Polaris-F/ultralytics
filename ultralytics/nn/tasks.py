@@ -96,7 +96,7 @@ from ultralytics.nn.extra_modules import (
     # ====================== blocks ======================
     SPDConv,
     CSPOmniKernel,
-
+    ACmix,
 
     # ====================== heads ======================
     Detect_RSCD,
@@ -1441,9 +1441,10 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         {
             SPDConv,
             # CSPOmniKernel,
+            ACmix,
         }
     )
-    ######################################## SPD-Conv start ########################################
+    
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
         m = (
             getattr(torch.nn, m[3:])
