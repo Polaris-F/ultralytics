@@ -1,7 +1,12 @@
 # from .afpn import *
 # from .attention import *
-from .block import *
-from .head import *
+from .block import (
+    ACmix,
+    SPDConv,
+    CSPOmniKernel,
+    AnaC2f,
+)
+from .head import Detect_RSCD, CLIPDetect
 from .rep_block import *
 # from .kernel_warehouse import *
 # from .dynamic_snake_conv import *
@@ -13,3 +18,15 @@ from .rep_block import *
 # from .transformer import *
 # from .cfpt import *
 # from .FreqFusion import *
+
+__all__ = (
+    ## from .block
+    "ACmix",
+    "SPDConv",
+    "CSPOmniKernel",
+    "AnaC2f"
+
+    ## from .head
+    "Detect_RSCD",
+    "CLIPDetect",
+)

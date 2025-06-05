@@ -12,6 +12,7 @@ from ultralytics.nn.tasks import (
     PoseModel,
     SegmentationModel,
     WorldModel,
+    SPARModel,
     YOLOEModel,
     YOLOESegModel,
 )
@@ -43,6 +44,10 @@ class YOLO(Model):
         path = Path(model)
         if "-world" in path.stem and path.suffix in {".pt", ".yaml", ".yml"}:  # if YOLOWorld PyTorch model
             new_instance = YOLOWorld(path, verbose=verbose)
+            self.__class__ = type(new_instance)
+            self.__dict__ = new_instance.__dict__
+        elif "-spar" in path.stem and path.suffix in {".pt", ".yaml", ".yml"}:
+            new_instance = SPARYOLO(path, verbose=verbose)
             self.__class__ = type(new_instance)
             self.__dict__ = new_instance.__dict__
         elif "yoloe" in path.stem and path.suffix in {".pt", ".yaml", ".yml"}:  # if YOLOE PyTorch model
@@ -119,6 +124,43 @@ class YOLOWorld(Model):
                 "validator": yolo.detect.DetectionValidator,
                 "predictor": yolo.detect.DetectionPredictor,
                 "trainer": yolo.world.WorldTrainer,
+            }
+        }
+
+    def set_classes(self, classes):
+        """
+        Set the model's class names for detection.
+
+        Args:
+            classes (list[str]): A list of categories i.e. ["person"].
+        """
+        self.model.set_classes(classes)
+        # Remove background if it's given
+        background = " "
+        if background in classes:
+            classes.remove(background)
+        self.model.names = classes
+
+        # Reset method class names
+        if self.predictor:
+            self.predictor.model.names = classes
+
+class SPARYOLO(Model):
+    def __init__(self, model="yolov8s-spar.pt", verbose=False) -> None:    
+        super().__init__(model=model, task="detect", verbose=verbose)
+        # Assign default COCO class names when there are no custom names
+        if not hasattr(self.model, "names"):
+            self.model.names = yaml_load(ROOT / "cfg/datasets/coco8.yaml").get("names")
+
+    @property
+    def task_map(self):
+        """Map head to model, validator, and predictor classes."""
+        return {
+            "detect": {
+                "model": SPARModel,
+                "validator": yolo.detect.DetectionValidator,
+                "predictor": yolo.detect.DetectionPredictor,
+                "trainer": yolo.spar.SPARTrainer,
             }
         }
 

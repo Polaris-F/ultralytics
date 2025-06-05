@@ -97,9 +97,11 @@ from ultralytics.nn.extra_modules import (
     SPDConv,
     CSPOmniKernel,
     ACmix,
+    AnaC2f,
 
     # ====================== heads ======================
     Detect_RSCD,
+    CLIPDetect,
 )
 
 try:
@@ -111,7 +113,8 @@ except ImportError:
 # 聚合检测任务CLass
 DETECT_CLASS = (
     Detect,
-    Detect_RSCD
+    Detect_RSCD,
+    # CLIPDetect
 )
 
 
@@ -773,8 +776,117 @@ class WorldModel(DetectionModel):
             if profile:
                 self._profile_one_layer(m, x, dt)
             if isinstance(m, C2fAttn):
+            # if m in frozenset({C2fAttn,AnaC2f}):
+                x = m(x, txt_feats)
+            elif isinstance(m, AnaC2f):
                 x = m(x, txt_feats)
             elif isinstance(m, WorldDetect):
+                x = m(x, ori_txt_feats)
+            elif isinstance(m, ImagePoolingAttn):
+                txt_feats = m(x, txt_feats)
+            else:
+                x = m(x)  # run
+
+            y.append(x if m.i in self.save else None)  # save output
+            if visualize:
+                feature_visualization(x, m.type, m.i, save_dir=visualize)
+            if embed and m.i in embed:
+                embeddings.append(torch.nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
+                if m.i == max(embed):
+                    return torch.unbind(torch.cat(embeddings, 1), dim=0)
+        return x
+
+    def loss(self, batch, preds=None):
+        """
+        Compute loss.
+
+        Args:
+            batch (dict): Batch to compute loss on.
+            preds (torch.Tensor | List[torch.Tensor], optional): Predictions.
+        """
+        if not hasattr(self, "criterion"):
+            self.criterion = self.init_criterion()
+
+        if preds is None:
+            preds = self.forward(batch["img"], txt_feats=batch["txt_feats"])
+        return self.criterion(preds, batch)
+
+class SPARModel(DetectionModel):
+    """YOLOv8 World Model."""
+
+    def __init__(self, cfg="yolov8s-world.yaml", ch=3, nc=None, verbose=True):
+        """
+        Initialize YOLOv8 world model with given config and parameters.
+
+        Args:
+            cfg (str | dict): Model configuration file path or dictionary.
+            ch (int): Number of input channels.
+            nc (int, optional): Number of classes.
+            verbose (bool): Whether to display model information.
+        """
+        self.txt_feats = torch.randn(1, nc or 80, 512)  # features placeholder
+        self.clip_model = None  # CLIP model placeholder
+        super().__init__(cfg=cfg, ch=ch, nc=nc, verbose=verbose)
+
+    def set_classes(self, text, batch=80, cache_clip_model=True):
+        """
+        Set classes in advance so that model could do offline-inference without clip model.
+
+        Args:
+            text (List[str]): List of class names.
+            batch (int): Batch size for processing text tokens.
+            cache_clip_model (bool): Whether to cache the CLIP model.
+        """
+        try:
+            import clip
+        except ImportError:
+            check_requirements("git+https://github.com/ultralytics/CLIP.git")
+            import clip
+
+        if (
+            not getattr(self, "clip_model", None) and cache_clip_model
+        ):  # for backwards compatibility of models lacking clip_model attribute
+            self.clip_model = clip.load("ViT-B/32")[0]
+        model = self.clip_model if cache_clip_model else clip.load("ViT-B/32")[0]
+        device = next(model.parameters()).device
+        text_token = clip.tokenize(text).to(device)
+        txt_feats = [model.encode_text(token).detach() for token in text_token.split(batch)]
+        txt_feats = txt_feats[0] if len(txt_feats) == 1 else torch.cat(txt_feats, dim=0)
+        txt_feats = txt_feats / txt_feats.norm(p=2, dim=-1, keepdim=True)
+        self.txt_feats = txt_feats.reshape(-1, len(text), txt_feats.shape[-1])
+        self.model[-1].nc = len(text)
+
+    def predict(self, x, profile=False, visualize=False, txt_feats=None, augment=False, embed=None):
+        """
+        Perform a forward pass through the model.
+
+        Args:
+            x (torch.Tensor): The input tensor.
+            profile (bool): If True, profile the computation time for each layer.
+            visualize (bool): If True, save feature maps for visualization.
+            txt_feats (torch.Tensor, optional): The text features, use it if it's given.
+            augment (bool): If True, perform data augmentation during inference.
+            embed (list, optional): A list of feature vectors/embeddings to return.
+
+        Returns:
+            (torch.Tensor): Model's output tensor.
+        """
+        txt_feats = (self.txt_feats if txt_feats is None else txt_feats).to(device=x.device, dtype=x.dtype)
+        if len(txt_feats) != len(x) or self.model[-1].export:
+            txt_feats = txt_feats.expand(x.shape[0], -1, -1)
+        ori_txt_feats = txt_feats.clone()
+        y, dt, embeddings = [], [], []  # outputs
+        for m in self.model:  # except the head part
+            if m.f != -1:  # if not from previous layer
+                x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+            if profile:
+                self._profile_one_layer(m, x, dt)
+            if isinstance(m, C2fAttn):
+            # if m in frozenset({C2fAttn,AnaC2f}):
+                x = m(x, txt_feats)
+            elif isinstance(m, AnaC2f):
+                x = m(x, txt_feats)
+            elif isinstance(m, CLIPDetect):
                 x = m(x, ori_txt_feats)
             elif isinstance(m, ImagePoolingAttn):
                 txt_feats = m(x, txt_feats)
@@ -1405,6 +1517,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             AConv,
             SPPELAN,
             C2fAttn,
+            AnaC2f,
             C3,
             C3TR,
             C3Ghost,
@@ -1426,6 +1539,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             C2f,
             C3k2,
             C2fAttn,
+            AnaC2f,
             C3,
             C3TR,
             C3Ghost,
@@ -1462,7 +1576,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
-            if m is C2fAttn:  # set 1) embed channels and 2) num heads
+            if m in frozenset({C2fAttn,AnaC2f}):  # set 1) embed channels and 2) num heads
                 args[1] = make_divisible(min(args[1], max_channels // 2) * width, 8)
                 args[2] = int(max(round(min(args[2], max_channels // 2 // 32)) * width, 1) if args[2] > 1 else args[2])
 
@@ -1495,7 +1609,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         elif m in frozenset(
-            {Detect, WorldDetect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB, ImagePoolingAttn, v10Detect}
+            {Detect, WorldDetect, CLIPDetect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB, ImagePoolingAttn, v10Detect}
         ):
             args.append([ch[x] for x in f])
             if m is Segment or m is YOLOESegment:
@@ -1628,7 +1742,7 @@ def guess_model_task(model):
                 return "pose"
             elif isinstance(m, OBB):
                 return "obb"
-            elif isinstance(m, (Detect, WorldDetect, YOLOEDetect, v10Detect)+DETECT_CLASS):
+            elif isinstance(m, (Detect, WorldDetect, CLIPDetect, YOLOEDetect, v10Detect)+DETECT_CLASS):
                 return "detect"
 
     # Guess from model filename

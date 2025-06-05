@@ -15,6 +15,7 @@ from .rep_block import DiverseBranchBlock
 from ultralytics.utils.tal import dist2bbox, make_anchors, dist2rbox
 # from ultralytics.utils.ops import nmsfree_postprocess
 
+from ..modules.block import DFL, SAVPE, BNContrastiveHead, ContrastiveHead, Proto, Residual, SwiGLUFFN
 
 __all__ = ['Detect_RSCD', ]
 
@@ -133,3 +134,34 @@ class Detect_RSCD(Detect_LSCD):
         # self.share_conv = nn.Sequential(DeepDiverseBranchBlock(hidc, hidc, 3), DeepDiverseBranchBlock(hidc, hidc, 3))
         # self.share_conv = nn.Sequential(WideDiverseBranchBlock(hidc, hidc, 3), WideDiverseBranchBlock(hidc, hidc, 3))
         # self.share_conv = nn.Sequential(RepConv(hidc, hidc, 3), RepConv(hidc, hidc, 3))
+
+######################################## CLIPDetect ########################################
+
+class CLIPDetect(Detect):
+    """Head for integrating YOLO detection models with semantic understanding from text embeddings."""
+
+    def __init__(self, nc=80, embed=512, with_bn=False, ch=()):
+        """Initialize YOLO detection layer with nc classes and layer channels ch."""
+        super().__init__(nc, ch)
+        c3 = max(ch[0], min(self.nc, 100))
+        self.cv3 = nn.ModuleList(nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, embed, 1)) for x in ch)
+        self.cv4 = nn.ModuleList(BNContrastiveHead(embed) if with_bn else ContrastiveHead() for _ in ch)
+
+    def forward(self, x, text):
+        """Concatenates and returns predicted bounding boxes and class probabilities."""
+        for i in range(self.nl):
+            x[i] = torch.cat((self.cv2[i](x[i]), self.cv4[i](self.cv3[i](x[i]), text)), 1)
+        if self.training:
+            return x
+        self.no = self.nc + self.reg_max * 4  # self.nc could be changed when inference with different texts
+        y = self._inference(x)
+        return y if self.export else (y, x)
+
+    def bias_init(self):
+        """Initialize Detect() biases, WARNING: requires stride availability."""
+        m = self  # self.model[-1]  # Detect() module
+        # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1
+        # ncf = math.log(0.6 / (m.nc - 0.999999)) if cf is None else torch.log(cf / cf.sum())  # nominal class frequency
+        for a, b, s in zip(m.cv2, m.cv3, m.stride):  # from
+            a[-1].bias.data[:] = 1.0  # box
+            # b[-1].bias.data[:] = math.log(5 / m.nc / (640 / s) ** 2)  # cls (.01 objects, 80 classes, 640 img)
