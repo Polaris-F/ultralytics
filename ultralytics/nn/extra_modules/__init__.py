@@ -5,6 +5,7 @@ from .block import (
     SPDConv,
     CSPOmniKernel,
     AnaC2f,
+    AnaC2f_pro
 )
 from .head import Detect_RSCD, CLIPDetect
 from .rep_block import *
@@ -24,7 +25,8 @@ __all__ = (
     "ACmix",
     "SPDConv",
     "CSPOmniKernel",
-    "AnaC2f"
+    "AnaC2f",
+    "AnaC2f_pro",
 
     ## from .head
     "Detect_RSCD",

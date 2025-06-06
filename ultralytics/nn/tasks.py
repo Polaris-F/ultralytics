@@ -98,6 +98,7 @@ from ultralytics.nn.extra_modules import (
     CSPOmniKernel,
     ACmix,
     AnaC2f,
+    AnaC2f_pro,
 
     # ====================== heads ======================
     Detect_RSCD,
@@ -776,9 +777,8 @@ class WorldModel(DetectionModel):
             if profile:
                 self._profile_one_layer(m, x, dt)
             if isinstance(m, C2fAttn):
-            # if m in frozenset({C2fAttn,AnaC2f}):
                 x = m(x, txt_feats)
-            elif isinstance(m, AnaC2f):
+            elif isinstance(m, AnaC2f) or isinstance(m, AnaC2f_pro):
                 x = m(x, txt_feats)
             elif isinstance(m, WorldDetect):
                 x = m(x, ori_txt_feats)
@@ -882,9 +882,8 @@ class SPARModel(DetectionModel):
             if profile:
                 self._profile_one_layer(m, x, dt)
             if isinstance(m, C2fAttn):
-            # if m in frozenset({C2fAttn,AnaC2f}):
                 x = m(x, txt_feats)
-            elif isinstance(m, AnaC2f):
+            elif isinstance(m, AnaC2f) or isinstance(m, AnaC2f_pro):
                 x = m(x, txt_feats)
             elif isinstance(m, CLIPDetect):
                 x = m(x, ori_txt_feats)
@@ -1518,6 +1517,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             SPPELAN,
             C2fAttn,
             AnaC2f,
+            AnaC2f_pro,
             C3,
             C3TR,
             C3Ghost,
@@ -1540,6 +1540,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             C3k2,
             C2fAttn,
             AnaC2f,
+            AnaC2f_pro,
             C3,
             C3TR,
             C3Ghost,
@@ -1576,7 +1577,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
-            if m in frozenset({C2fAttn,AnaC2f}):  # set 1) embed channels and 2) num heads
+            if m in frozenset({C2fAttn,AnaC2f,AnaC2f_pro}):  # set 1) embed channels and 2) num heads
                 args[1] = make_divisible(min(args[1], max_channels // 2) * width, 8)
                 args[2] = int(max(round(min(args[2], max_channels // 2 // 32)) * width, 1) if args[2] > 1 else args[2])
 
