@@ -3,7 +3,7 @@ tmp/
 logs/
 *.log
 *.tmp
-
+workspace/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
