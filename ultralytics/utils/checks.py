@@ -784,8 +784,13 @@ def check_amp(model):
     warning_msg = "Setting 'amp=True'. If you experience zero-mAP or NaN losses you can disable AMP with amp=False."
     try:
         from ultralytics import YOLO
-
-        assert amp_allclose(YOLO("yolo11n.pt"), im)
+        # 优先使用环境变量指定的权重路径，否则使用默认路径
+        amp_pt_path = os.environ.get("Ultralytics_AMP_pt_path", "").strip()
+        print(f'正在检查 Ultralytics_AMP_pt_path 环境变量... <{amp_pt_path}>')
+        if not amp_pt_path:
+            print(f'Ultralytics_AMP_pt_path 环境变量未设置或为空，使用默认路径 yolo11n.pt 进行 AMP 检查。')
+            amp_pt_path = "yolo11n.pt"  # 默认路径（会自动下载）
+        assert amp_allclose(YOLO(amp_pt_path), im)
         LOGGER.info(f"{prefix}checks passed ✅")
     except ConnectionError:
         LOGGER.warning(f"{prefix}checks skipped. Offline and unable to download YOLO11n for AMP checks. {warning_msg}")
